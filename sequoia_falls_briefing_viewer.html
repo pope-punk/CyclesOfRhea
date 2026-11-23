@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>◈</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Minimal Darkroom Styling, Radial Vignette & Thin Slider -->
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0b0c0c;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Matte obsidian/charcoal darkroom surface with subtle radial vignette */
+    .darkroom-bg {
+      background-color: #0b0c0c;
+      background-image: radial-gradient(
+        ellipse at 50% 48%,
+        #141615 0%,
+        #0f1110 46%,
+        #0b0c0c 100%
+      );
+    }
+
+    /* Soft tactile gallery shadow behind handout pages */
+    .page-shadow {
+      box-shadow:
+        0 28px 70px rgba(0, 0, 0, 0.88),
+        0 8px 24px rgba(0, 0, 0, 0.58);
+    }
+
+    /* Minimal thin volume range slider */
+    input[type="range"].minimal-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(226, 232, 226, 0.22);
+      outline: none;
+    }
+
+    input[type="range"].minimal-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #dce1dc;
+      cursor: pointer;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    input[type="range"].minimal-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+      background: #f4f6f4;
+    }
+
+    input[type="range"].minimal-slider::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border: none;
+      border-radius: 999px;
+      background: #dce1dc;
+      cursor: pointer;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+  </style>
+</head>
+
+<body class="darkroom-bg w-screen h-screen overflow-hidden relative">
+
+  <!-- Ultra-Subtle Inline SVG Film Grain Texture (Zero Base64 / Zero External Assets) -->
+  <svg
+    class="fixed inset-0 w-full h-full pointer-events-none z-50 opacity-[0.04]"
+    aria-hidden="true"
+  >
+    <filter id="darkroom-grain">
+      <feTurbulence
+        type="fractalNoise"
+        baseFrequency="0.82"
+        numOctaves="3"
+        stitchTiles="stitch"
+      />
+      <feColorMatrix type="saturate" values="0" />
+    </filter>
+    <rect width="100%" height="100%" filter="url(#darkroom-grain)" />
+  </svg>
+
+  <!-- Native HTML5 Looping Audio Element (Configured via AUDIO_SRC in JS) -->
+  <audio id="bg-audio" preload="auto" loop playsinline></audio>
+
+  <!-- Hidden File Pickers for Local Handout PNGs & Local Audio Preview -->
+  <input
+    id="image-file-input"
+    type="file"
+    accept="image/*"
+    multiple
+    class="hidden"
+    aria-hidden="true"
+  />
+  <input
+    id="audio-file-input"
+    type="file"
+    accept="audio/*"
+    class="hidden"
+    aria-hidden="true"
+  />
+
+  <!-- Full-Window Drag-Over Indicator Frame (Zero Text) -->
+  <div
+    id="drag-overlay"
+    class="fixed inset-4 z-50 rounded-2xl border-2 border-dashed border-[#dce1dc]/30 bg-[#0b0c0c]/45 backdrop-blur-[2px] pointer-events-none opacity-0 transition-opacity duration-200 flex items-center justify-center"
+    aria-hidden="true"
+  >
+    <div class="w-16 h-16 rounded-full border border-[#dce1dc]/25 bg-[#0b0c0c]/60 flex items-center justify-center text-[#dce1dc]/80">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" />
+      </svg>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       1. FULL-SCREEN ENTRY OVERLAY (Starts & Fades In Audio on Click)
+  ======================================================================== -->
+  <div
+    id="entry-overlay"
+    class="fixed inset-0 z-40 darkroom-bg flex items-center justify-center cursor-pointer transition-opacity duration-700 ease-out"
+    role="button"
+    tabindex="0"
+    aria-label="Enter"
+  >
+    <div
+      id="entry-btn"
+      class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border border-[#dce1dc]/20 bg-[#dce1dc]/[0.025] flex items-center justify-center text-[#dce1dc]/75 transition-all duration-300 ease-out hover:scale-105 hover:border-[#dce1dc]/45 hover:bg-[#dce1dc]/[0.055] hover:text-[#f4f6f4] hover:shadow-[0_0_40px_rgba(220,225,220,0.1)]"
+    >
+      <!-- Minimal Play Triangle -->
+      <svg class="w-7 h-7 sm:w-8 sm:h-8 translate-x-[2px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.5 5.25L18.75 12L7.5 18.75V5.25Z" />
+      </svg>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       2. MAIN ONE-PAGE-AT-A-TIME VIEWER
+  ======================================================================== -->
+  <main
+    id="viewer-shell"
+    class="relative w-full h-full flex items-center justify-center opacity-0 transition-opacity duration-700 ease-out"
+  >
+    <!-- Left Navigation Chevron -->
+    <button
+      id="prev-btn"
+      type="button"
+      class="fixed left-2 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-[#dce1dc]/60 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.07] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/60 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
+      aria-label="Previous"
+    >
+      <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.25 19L8.25 12L15.25 5" />
+      </svg>
+    </button>
+
+    <!-- Right Navigation Chevron -->
+    <button
+      id="next-btn"
+      type="button"
+      class="fixed right-2 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-[#dce1dc]/60 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.07] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/60 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
+      aria-label="Next"
+    >
+      <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.75 5L15.75 12L8.75 19" />
+      </svg>
+    </button>
+
+    <!-- Center Stage: Active Page Image OR Icon-Only Fallback Upload Container -->
+    <div
+      id="stage-container"
+      class="w-full h-full flex items-center justify-center transition-opacity duration-300 ease-out"
+    >
+      <!-- Active Handout Image (Starts hidden until onload succeeds; alt="" guarantees zero broken text) -->
+      <img
+        id="page-img"
+        src=""
+        alt=""
+        draggable="false"
+        class="hidden page-shadow object-contain rounded-[3px] cursor-zoom-in max-h-[calc(100vh-76px)] max-w-[calc(100vw-88px)] sm:max-w-[calc(100vw-128px)] transition-transform duration-300 ease-out"
+      />
+
+      <!-- Icon-Only Missing-Image Fallback Upload Frame -->
+      <button
+        id="fallback-upload"
+        type="button"
+        class="hidden w-56 h-72 sm:w-64 sm:h-80 rounded-2xl border border-dashed border-[#dce1dc]/20 hover:border-[#dce1dc]/45 bg-[#dce1dc]/[0.02] hover:bg-[#dce1dc]/[0.045] flex items-center justify-center text-[#dce1dc]/45 hover:text-[#f4f6f4]/90 transition-all duration-200 cursor-pointer focus:outline-none"
+        aria-label="Load images"
+      >
+        <!-- Clean Image-Plus SVG Icon -->
+        <svg class="w-11 h-11" fill="none" stroke="currentColor" stroke-width="1.35" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 11V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h7" />
+          <circle cx="8.5" cy="9.5" r="1.25" fill="currentColor" stroke="none" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 16.5l4.2-4.2a1.2 1.2 0 011.7 0l2.6 2.6" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 14v6M14.5 17h6" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bottom-Center Minimal Pagination Dots -->
+    <nav
+      id="pagination-dots"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1"
+      aria-label="Pages"
+    >
+      <!-- Dots generated via JS -->
+    </nav>
+
+    <!-- =====================================================================
+         3. MINIMAL BOTTOM-RIGHT FLOATING AUDIO PILL (ICON-ONLY)
+    ====================================================================== -->
+    <div
+      id="audio-pill"
+      class="fixed bottom-3.5 right-3.5 sm:bottom-5 sm:right-5 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#111312]/80 border border-[#dce1dc]/12 backdrop-blur-md opacity-35 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300"
+    >
+      <!-- Play / Pause SVG Toggle -->
+      <button
+        id="audio-play-btn"
+        type="button"
+        class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+        aria-label="Play or pause"
+      >
+        <svg id="icon-play" class="w-3.5 h-3.5 translate-x-[0.5px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7.5 5.25L18.75 12L7.5 18.75V5.25Z" />
+        </svg>
+        <svg id="icon-pause" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.75 5.25H10.25V18.75H6.75V5.25ZM13.75 5.25H17.25V18.75H13.75V5.25Z" />
+        </svg>
+      </button>
+
+      <!-- Mute / Unmute SVG Toggle -->
+      <button
+        id="audio-mute-btn"
+        type="button"
+        class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+        aria-label="Mute or unmute"
+      >
+        <svg id="icon-vol-on" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.2 8.8a4.5 4.5 0 010 6.4" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.2 6a8.5 8.5 0 010 12" />
+        </svg>
+        <svg id="icon-vol-off" class="w-4 h-4 hidden text-[#dce1dc]/45" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 9.5L21 14.5M21 9.5L16 14.5" />
+        </svg>
+      </button>
+
+      <!-- Minimal Volume Slider -->
+      <input
+        id="audio-volume"
+        type="range"
+        min="0"
+        max="100"
+        value="65"
+        class="minimal-slider w-14 sm:w-16 mx-0.5 cursor-pointer"
+        aria-label="Volume"
+      />
+
+      <!-- Local Audio Upload Fallback Icon (Revealed ONLY if place.mp3 fails to load) -->
+      <button
+        id="audio-upload-btn"
+        type="button"
+        class="hidden w-8 h-8 rounded-full items-center justify-center text-[#dce1dc]/70 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+        aria-label="Load audio file"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.5a2 2 0 11-4 0 2 2 0 014 0zm0 0V6.5l10-2v8.5" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 15v5M15 17.5h5" />
+        </svg>
+      </button>
+    </div>
+  </main>
+
+  <!-- =======================================================================
+       4. CLICK-TO-ZOOM & PAN INSPECT OVERLAY (ICON-ONLY)
+  ======================================================================== -->
+  <div
+    id="zoom-overlay"
+    class="fixed inset-0 z-30 hidden items-center justify-center bg-[#080908]/95 backdrop-blur-sm overflow-hidden opacity-0 transition-opacity duration-200"
+    role="dialog"
+    aria-modal="true"
+  >
+    <!-- Minimal Corner Close (×) SVG Button -->
+    <button
+      id="zoom-close-btn"
+      type="button"
+      class="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 w-11 h-11 rounded-full bg-[#111312]/85 border border-[#dce1dc]/15 flex items-center justify-center text-[#dce1dc]/70 hover:text-[#f4f6f4] hover:border-[#dce1dc]/35 hover:bg-[#1a1d1b] transition-all duration-200 cursor-pointer focus:outline-none"
+      aria-label="Close"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6L18 18M18 6L6 18" />
+      </svg>
+    </button>
+
+    <!-- Magnified, Pannable, Wheel-Zoomable & Double-Click-Zoomable Handout -->
+    <img
+      id="zoom-img"
+      src=""
+      alt=""
+      draggable="false"
+      class="page-shadow max-h-[88vh] max-w-[90vw] object-contain rounded-[3px] cursor-grab active:cursor-grabbing will-change-transform"
+    />
+  </div>
+
+  <!-- =======================================================================
+       APPLICATION LOGIC
+  ======================================================================== -->
+  <script>
+    /* -----------------------------------------------------------------------
+     * CONFIGURATION — DROP place.mp3 & YOUR PNGs IN THE SAME FOLDER
+     * ----------------------------------------------------------------------- */
+    const AUDIO_SRC = 'place.mp3';
+    const PAGES = [
+      'Refresher1.png',
+      'Refresher2.png',
+      'Refresher3.png',
+      // 'Refresher4.png',
+      // 'Refresher5.png',
+      // 'Refresher6.png',
+      // 'Refresher7.png',
+    ];
+
+    const DEFAULT_VOLUME = 0.65;
+    const FADE_IN_MS = 1200;
+
+    /* -----------------------------------------------------------------------
+     * APPLICATION STATE
+     * ----------------------------------------------------------------------- */
+    const state = {
+      entered: false,
+      sources: [...PAGES],
+      currentIndex: 0,
+      imageLoaded: false,
+      imageObjectUrls: [],
+      audioObjectUrl: null,
+
+      // Audio state
+      targetVolume: DEFAULT_VOLUME,
+      isMuted: false,
+      audioPlaying: false,
+      audioError: false,
+      userPaused: false,
+      fadeRafId: null,
+      unlockArmed: false,
+
+      // Zoom / Pan state
+      zoomOpen: false,
+      zoomScale: 2.0,
+      panX: 0,
+      panY: 0,
+      isPanning: false,
+      didPanDrag: false,
+      panStartX: 0,
+      panStartY: 0,
+      panOriginX: 0,
+      panOriginY: 0,
+      pinchStartDist: 0,
+      pinchStartScale: 2.0,
+    };
+
+    /* -----------------------------------------------------------------------
+     * DOM REFERENCES
+     * ----------------------------------------------------------------------- */
+    const dom = {
+      audio: document.getElementById('bg-audio'),
+      entryOverlay: document.getElementById('entry-overlay'),
+      viewerShell: document.getElementById('viewer-shell'),
+      stageContainer: document.getElementById('stage-container'),
+      pageImg: document.getElementById('page-img'),
+      fallbackUpload: document.getElementById('fallback-upload'),
+      imageFileInput: document.getElementById('image-file-input'),
+      audioFileInput: document.getElementById('audio-file-input'),
+      dragOverlay: document.getElementById('drag-overlay'),
+
+      prevBtn: document.getElementById('prev-btn'),
+      nextBtn: document.getElementById('next-btn'),
+      paginationDots: document.getElementById('pagination-dots'),
+
+      audioPlayBtn: document.getElementById('audio-play-btn'),
+      iconPlay: document.getElementById('icon-play'),
+      iconPause: document.getElementById('icon-pause'),
+      audioMuteBtn: document.getElementById('audio-mute-btn'),
+      iconVolOn: document.getElementById('icon-vol-on'),
+      iconVolOff: document.getElementById('icon-vol-off'),
+      audioVolume: document.getElementById('audio-volume'),
+      audioUploadBtn: document.getElementById('audio-upload-btn'),
+
+      zoomOverlay: document.getElementById('zoom-overlay'),
+      zoomImg: document.getElementById('zoom-img'),
+      zoomCloseBtn: document.getElementById('zoom-close-btn'),
+    };
+
+    /* -----------------------------------------------------------------------
+     * NATIVE HTML5 AUDIO ENGINE (place.mp3 + FADE-IN + SEAMLESS LOOP)
+     * ----------------------------------------------------------------------- */
+    function syncAudioIcons() {
+      dom.iconPlay.classList.toggle('hidden', state.audioPlaying);
+      dom.iconPause.classList.toggle('hidden', !state.audioPlaying);
+
+      const mutedNow = state.isMuted || state.targetVolume <= 0.001;
+      dom.iconVolOn.classList.toggle('hidden', mutedNow);
+      dom.iconVolOff.classList.toggle('hidden', !mutedNow);
+    }
+
+    function setAudioUploadVisible(visible) {
+      dom.audioUploadBtn.classList.toggle('hidden', !visible);
+      dom.audioUploadBtn.classList.toggle('flex', visible);
+    }
+
+    function cancelFade() {
+      if (state.fadeRafId !== null) {
+        cancelAnimationFrame(state.fadeRafId);
+        state.fadeRafId = null;
+      }
+    }
+
+    function fadeAudioVolume(fromVol, toVol, durationMs = FADE_IN_MS) {
+      cancelFade();
+      const startTime = performance.now();
+      const safeFrom = Math.max(0, Math.min(1, fromVol));
+      const safeTo = Math.max(0, Math.min(1, toVol));
+
+      dom.audio.volume = safeFrom;
+
+      function tick(now) {
+        if (dom.audio.paused || state.isMuted) {
+          state.fadeRafId = null;
+          return;
+        }
+        const elapsed = now - startTime;
+        const t = Math.min(1, elapsed / durationMs);
+        // Smooth cubic ease-out ramp
+        const eased = 1 - Math.pow(1 - t, 3);
+        dom.audio.volume = Math.max(0, Math.min(1, safeFrom + (safeTo - safeFrom) * eased));
+
+        if (t < 1) {
+          state.fadeRafId = requestAnimationFrame(tick);
+        } else {
+          state.fadeRafId = null;
+        }
+      }
+
+      state.fadeRafId = requestAnimationFrame(tick);
+    }
+
+    /**
+     * One-time gesture fallback: if initial autoplay was blocked by browser policy,
+     * the very next pointerdown or keydown unlocks and fades in playback.
+     */
+    function armAutoplayUnlock() {
+      if (state.unlockArmed) return;
+      state.unlockArmed = true;
+
+      const unlockHandler = () => {
+        window.removeEventListener('pointerdown', unlockHandler, true);
+        window.removeEventListener('keydown', unlockHandler, true);
+        state.unlockArmed = false;
+
+        if (!state.userPaused && !state.audioError && dom.audio.paused) {
+          startAudio(true);
+        }
+      };
+
+      window.addEventListener('pointerdown', unlockHandler, true);
+      window.addEventListener('keydown', unlockHandler, true);
+    }
+
+    function startAudio(withFade = true) {
+      state.userPaused = false;
+      dom.audio.muted = state.isMuted;
+
+      const startVol = withFade && !state.isMuted ? 0 : (state.isMuted ? 0 : state.targetVolume);
+      if (dom.audio.paused) {
+        dom.audio.volume = startVol;
+      }
+
+      try {
+        const playPromise = dom.audio.play();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => {
+              state.audioError = false;
+              state.audioPlaying = true;
+              setAudioUploadVisible(false);
+              syncAudioIcons();
+
+              if (withFade && !state.isMuted) {
+                fadeAudioVolume(dom.audio.volume, state.targetVolume, FADE_IN_MS);
+              } else if (!state.isMuted) {
+                cancelFade();
+                dom.audio.volume = state.targetVolume;
+              }
+            })
+            .catch((err) => {
+              state.audioPlaying = false;
+              syncAudioIcons();
+
+              // Autoplay blocked by browser policy -> arm one-time gesture unlock
+              if (err && err.name === 'NotAllowedError') {
+                armAutoplayUnlock();
+              } else if (err && err.name === 'NotSupportedError') {
+                state.audioError = true;
+                setAudioUploadVisible(true);
+              }
+            });
+        }
+      } catch (_) {
+        state.audioError = true;
+        setAudioUploadVisible(true);
+      }
+    }
+
+    function toggleAudioPlay() {
+      if (state.audioError) {
+        dom.audioFileInput.click();
+        return;
+      }
+
+      if (dom.audio.paused) {
+        startAudio(false);
+      } else {
+        state.userPaused = true;
+        cancelFade();
+        dom.audio.pause();
+        state.audioPlaying = false;
+        syncAudioIcons();
+      }
+    }
+
+    function toggleAudioMute() {
+      cancelFade();
+      state.isMuted = !state.isMuted;
+      dom.audio.muted = state.isMuted;
+
+      if (!state.isMuted) {
+        if (state.targetVolume <= 0.001) {
+          state.targetVolume = DEFAULT_VOLUME;
+          dom.audioVolume.value = String(Math.round(DEFAULT_VOLUME * 100));
+        }
+        dom.audio.volume = state.targetVolume;
+      }
+
+      syncAudioIcons();
+    }
+
+    function handleVolumeInput(rawValue) {
+      cancelFade();
+      const clamped = Math.max(0, Math.min(100, Number(rawValue) || 0));
+      state.targetVolume = clamped / 100;
+
+      if (clamped > 0 && state.isMuted) {
+        state.isMuted = false;
+        dom.audio.muted = false;
+      }
+
+      dom.audio.volume = state.targetVolume;
+      syncAudioIcons();
+    }
+
+    function loadLocalAudioFile(file) {
+      if (!file) return;
+      try {
+        if (state.audioObjectUrl) {
+          URL.revokeObjectURL(state.audioObjectUrl);
+        }
+        state.audioObjectUrl = URL.createObjectURL(file);
+        state.audioError = false;
+        setAudioUploadVisible(false);
+
+        dom.audio.src = state.audioObjectUrl;
+        dom.audio.loop = true;
+        dom.audio.load();
+        startAudio(true);
+      } catch (_) {
+        state.audioError = true;
+        setAudioUploadVisible(true);
+      }
+    }
+
+    function initAudio() {
+      dom.audio.src = AUDIO_SRC;
+      dom.audio.loop = true;
+      dom.audio.preload = 'auto';
+      dom.audio.volume = 0;
+      dom.audioVolume.value = String(Math.round(state.targetVolume * 100));
+
+      dom.audio.addEventListener('play', () => {
+        state.audioPlaying = true;
+        syncAudioIcons();
+      });
+
+      dom.audio.addEventListener('pause', () => {
+        state.audioPlaying = false;
+        syncAudioIcons();
+      });
+
+      // Seamless loop safeguard in addition to audio.loop = true
+      dom.audio.addEventListener('ended', () => {
+        try {
+          dom.audio.currentTime = 0;
+          dom.audio.play().catch(() => {});
+        } catch (_) {
+          // Ignore transient loop error
+        }
+      });
+
+      dom.audio.addEventListener('canplay', () => {
+        state.audioError = false;
+        setAudioUploadVisible(false);
+      });
+
+      // If place.mp3 is missing or cannot load, reveal icon-only audio upload fallback
+      dom.audio.addEventListener('error', () => {
+        state.audioError = true;
+        state.audioPlaying = false;
+        cancelFade();
+        setAudioUploadVisible(true);
+        syncAudioIcons();
+      });
+
+      syncAudioIcons();
+
+      // Attempt quiet autoplay immediately; gracefully arms unlock if browser blocks it
+      startAudio(true);
+    }
+
+    /* -----------------------------------------------------------------------
+     * DOSSIER PAGE RENDERING & NAVIGATION
+     * ----------------------------------------------------------------------- */
+    function renderPaginationDots() {
+      dom.paginationDots.innerHTML = '';
+
+      if (state.sources.length <= 1) return;
+
+      state.sources.forEach((_, idx) => {
+        const active = idx === state.currentIndex;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', `Page ${idx + 1}`);
+        // Generous invisible tap target around minimal visible dot
+        btn.className = 'p-1.5 flex items-center justify-center cursor-pointer focus:outline-none group';
+
+        const dot = document.createElement('span');
+        dot.className = active
+          ? 'block w-4 h-1.5 rounded-full bg-[#e6ebe6]/85 transition-all duration-250'
+          : 'block w-1.5 h-1.5 rounded-full bg-[#dce1dc]/25 group-hover:bg-[#dce1dc]/55 transition-all duration-250';
+
+        btn.appendChild(dot);
+        btn.addEventListener('click', () => goToPage(idx));
+        dom.paginationDots.appendChild(btn);
+      });
+    }
+
+    function preloadNeighbors() {
+      [state.currentIndex - 1, state.currentIndex + 1].forEach((idx) => {
+        if (idx >= 0 && idx < state.sources.length) {
+          const pre = new Image();
+          pre.src = state.sources[idx];
+        }
+      });
+    }
+
+    function showPage(index, immediate = false) {
+      if (index < 0 || index >= state.sources.length) return;
+      state.currentIndex = index;
+
+      dom.prevBtn.disabled = index === 0;
+      dom.nextBtn.disabled = index === state.sources.length - 1;
+      renderPaginationDots();
+
+      const loadTarget = () => {
+        state.imageLoaded = false;
+        const src = state.sources[index];
+
+        // Hide both elements until load/error resolves so no broken image frame ever flashes
+        dom.pageImg.classList.add('hidden');
+        dom.fallbackUpload.classList.add('hidden');
+
+        dom.pageImg.onload = () => {
+          if (state.sources[state.currentIndex] !== src) return;
+          state.imageLoaded = true;
+          dom.fallbackUpload.classList.add('hidden');
+          dom.pageImg.classList.remove('hidden');
+          dom.stageContainer.classList.remove('opacity-0');
+          preloadNeighbors();
+        };
+
+        dom.pageImg.onerror = () => {
+          if (state.sources[state.currentIndex] !== src) return;
+          state.imageLoaded = false;
+          dom.pageImg.classList.add('hidden');
+          dom.pageImg.removeAttribute('src');
+          dom.fallbackUpload.classList.remove('hidden');
+          dom.stageContainer.classList.remove('opacity-0');
+        };
+
+        dom.pageImg.src = src;
+      };
+
+      if (immediate) {
+        loadTarget();
+      } else {
+        dom.stageContainer.classList.add('opacity-0');
+        setTimeout(loadTarget, 170);
+      }
+    }
+
+    function goToPage(index) {
+      if (index === state.currentIndex || index < 0 || index >= state.sources.length) return;
+      showPage(index, false);
+    }
+
+    /* -----------------------------------------------------------------------
+     * LOCAL PREVIEW FALLBACK & WINDOW DRAG-AND-DROP (IMAGES + AUDIO)
+     * ----------------------------------------------------------------------- */
+    function isImageFile(file) {
+      return (
+        (file.type && file.type.startsWith('image/')) ||
+        /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(file.name || '')
+      );
+    }
+
+    function isAudioFile(file) {
+      return (
+        (file.type && file.type.startsWith('audio/')) ||
+        /\.(mp3|wav|ogg|m4a|flac|aac|webm)$/i.test(file.name || '')
+      );
+    }
+
+    function loadLocalImageFiles(files) {
+      try {
+        const images = Array.from(files || []).filter(isImageFile);
+        if (images.length === 0) return false;
+
+        // Sort in natural alphanumeric order (Refresher1.png ... Refresher10.png)
+        images.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        state.imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        state.imageObjectUrls = [];
+
+        state.sources = images.map((file) => {
+          const url = URL.createObjectURL(file);
+          state.imageObjectUrls.push(url);
+          return url;
+        });
+
+        if (state.zoomOpen) {
+          closeZoom();
+        }
+
+        showPage(0, false);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function handleDroppedFiles(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+
+      const audioFiles = files.filter(isAudioFile);
+      const imageFiles = files.filter(isImageFile);
+
+      if (audioFiles.length > 0) {
+        loadLocalAudioFile(audioFiles[0]);
+      }
+
+      if (imageFiles.length > 0) {
+        loadLocalImageFiles(imageFiles);
+      }
+
+      // If files were dropped directly onto the entry overlay, transition straight into the viewer
+      if (!state.entered && (imageFiles.length > 0 || audioFiles.length > 0)) {
+        enterViewer(audioFiles.length === 0);
+      }
+    }
+
+    function initWindowDragDrop() {
+      let dragDepth = 0;
+
+      window.addEventListener('dragenter', (e) => {
+        if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        dragDepth++;
+        dom.dragOverlay.classList.remove('opacity-0');
+      });
+
+      window.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+      });
+
+      window.addEventListener('dragleave', (e) => {
+        if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) {
+          dom.dragOverlay.classList.add('opacity-0');
+        }
+      });
+
+      window.addEventListener('drop', (e) => {
+        if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        dragDepth = 0;
+        dom.dragOverlay.classList.add('opacity-0');
+        handleDroppedFiles(e.dataTransfer.files);
+      });
+    }
+
+    /* -----------------------------------------------------------------------
+     * CLICK-TO-ZOOM, SCROLL-WHEEL, DOUBLE-CLICK & DRAG-TO-PAN INSPECT MODE
+     * ----------------------------------------------------------------------- */
+    function clampPan() {
+      const rect = dom.zoomImg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const baseW = rect.width / state.zoomScale;
+      const baseH = rect.height / state.zoomScale;
+
+      const maxPanX = Math.max(0, (baseW * state.zoomScale - window.innerWidth * 0.85) / 2);
+      const maxPanY = Math.max(0, (baseH * state.zoomScale - window.innerHeight * 0.85) / 2);
+
+      state.panX = Math.max(-maxPanX, Math.min(maxPanX, state.panX));
+      state.panY = Math.max(-maxPanY, Math.min(maxPanY, state.panY));
+    }
+
+    function applyZoomTransform(smooth = false) {
+      dom.zoomImg.style.transition = smooth ? 'transform 180ms ease-out' : 'none';
+      dom.zoomImg.style.transform = `translate3d(${state.panX}px, ${state.panY}px, 0) scale(${state.zoomScale})`;
+    }
+
+    function openZoom() {
+      if (!state.imageLoaded) return;
+      state.zoomOpen = true;
+      state.zoomScale = 2.0;
+      state.panX = 0;
+      state.panY = 0;
+
+      dom.zoomImg.src = state.sources[state.currentIndex];
+      dom.zoomOverlay.classList.remove('hidden');
+      dom.zoomOverlay.classList.add('flex');
+
+      applyZoomTransform(false);
+
+      requestAnimationFrame(() => {
+        dom.zoomOverlay.classList.remove('opacity-0');
+      });
+    }
+
+    function closeZoom() {
+      if (!state.zoomOpen) return;
+      state.zoomOpen = false;
+      state.isPanning = false;
+      dom.zoomOverlay.classList.add('opacity-0');
+
+      setTimeout(() => {
+        if (!state.zoomOpen) {
+          dom.zoomOverlay.classList.add('hidden');
+          dom.zoomOverlay.classList.remove('flex');
+          dom.zoomImg.removeAttribute('src');
+        }
+      }, 200);
+    }
+
+    function initZoomInteractions() {
+      // Mouse wheel smooth zoom in/out
+      dom.zoomOverlay.addEventListener('wheel', (e) => {
+        if (!state.zoomOpen) return;
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        state.zoomScale = Math.max(1.0, Math.min(4.0, state.zoomScale * factor));
+        if (state.zoomScale <= 1.02) {
+          state.panX = 0;
+          state.panY = 0;
+        } else {
+          clampPan();
+        }
+        applyZoomTransform(true);
+      }, { passive: false });
+
+      // Double-click image to toggle between 1.0x fit and 2.2x close inspect
+      dom.zoomImg.addEventListener('dblclick', (e) => {
+        if (!state.zoomOpen) return;
+        e.preventDefault();
+        if (state.zoomScale > 1.2) {
+          state.zoomScale = 1.0;
+          state.panX = 0;
+          state.panY = 0;
+        } else {
+          state.zoomScale = 2.2;
+          clampPan();
+        }
+        applyZoomTransform(true);
+      });
+
+      // Mouse drag-to-pan
+      dom.zoomImg.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        state.isPanning = true;
+        state.didPanDrag = false;
+        state.panStartX = e.clientX;
+        state.panStartY = e.clientY;
+        state.panOriginX = state.panX;
+        state.panOriginY = state.panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!state.isPanning || !state.zoomOpen) return;
+        const dx = e.clientX - state.panStartX;
+        const dy = e.clientY - state.panStartY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+          state.didPanDrag = true;
+        }
+        state.panX = state.panOriginX + dx;
+        state.panY = state.panOriginY + dy;
+        clampPan();
+        applyZoomTransform(false);
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.isPanning = false;
+      });
+
+      // Touch drag-to-pan & two-finger pinch zoom inside inspect mode
+      dom.zoomOverlay.addEventListener('touchstart', (e) => {
+        if (!state.zoomOpen) return;
+        if (e.touches.length === 1) {
+          state.isPanning = true;
+          state.didPanDrag = false;
+          state.panStartX = e.touches[0].clientX;
+          state.panStartY = e.touches[0].clientY;
+          state.panOriginX = state.panX;
+          state.panOriginY = state.panY;
+        } else if (e.touches.length === 2) {
+          state.isPanning = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          state.pinchStartDist = Math.hypot(dx, dy);
+          state.pinchStartScale = state.zoomScale;
+        }
+      }, { passive: true });
+
+      dom.zoomOverlay.addEventListener('touchmove', (e) => {
+        if (!state.zoomOpen) return;
+        if (e.touches.length === 1 && state.isPanning) {
+          e.preventDefault();
+          const dx = e.touches[0].clientX - state.panStartX;
+          const dy = e.touches[0].clientY - state.panStartY;
+          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+            state.didPanDrag = true;
+          }
+          state.panX = state.panOriginX + dx;
+          state.panY = state.panOriginY + dy;
+          clampPan();
+          applyZoomTransform(false);
+        } else if (e.touches.length === 2 && state.pinchStartDist > 0) {
+          e.preventDefault();
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          state.zoomScale = Math.max(1.0, Math.min(4.0, state.pinchStartScale * (dist / state.pinchStartDist)));
+          clampPan();
+          applyZoomTransform(false);
+        }
+      }, { passive: false });
+
+      dom.zoomOverlay.addEventListener('touchend', () => {
+        state.isPanning = false;
+        state.pinchStartDist = 0;
+      }, { passive: true });
+
+      // Click dark backdrop outside image to exit zoom
+      dom.zoomOverlay.addEventListener('click', (e) => {
+        if (e.target === dom.zoomOverlay && !state.didPanDrag) {
+          closeZoom();
+        }
+      });
+
+      dom.zoomCloseBtn.addEventListener('click', closeZoom);
+    }
+
+    /* -----------------------------------------------------------------------
+     * ENTRY TRIGGER & GLOBAL INPUT BINDINGS
+     * ----------------------------------------------------------------------- */
+    function enterViewer(triggerAudio = true) {
+      if (state.entered) return;
+      state.entered = true;
+
+      if (triggerAudio && !state.audioError) {
+        if (dom.audio.paused) {
+          startAudio(true);
+        } else if (!state.isMuted) {
+          fadeAudioVolume(dom.audio.volume, state.targetVolume, FADE_IN_MS);
+        }
+      }
+
+      dom.entryOverlay.classList.add('opacity-0', 'pointer-events-none');
+      dom.viewerShell.classList.remove('opacity-0');
+
+      setTimeout(() => {
+        dom.entryOverlay.classList.add('hidden');
+      }, 720);
+    }
+
+    function bindEvents() {
+      // Entry overlay click / keyboard trigger
+      dom.entryOverlay.addEventListener('click', () => enterViewer(true));
+      dom.entryOverlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          enterViewer(true);
+        }
+      });
+
+      // Navigation buttons
+      dom.prevBtn.addEventListener('click', () => goToPage(state.currentIndex - 1));
+      dom.nextBtn.addEventListener('click', () => goToPage(state.currentIndex + 1));
+
+      // Click page image to enter zoom mode
+      dom.pageImg.addEventListener('click', openZoom);
+
+      // Local image picker fallback
+      dom.fallbackUpload.addEventListener('click', () => dom.imageFileInput.click());
+      dom.imageFileInput.addEventListener('change', (e) => {
+        loadLocalImageFiles(e.target.files);
+        e.target.value = '';
+      });
+
+      // Local audio picker fallback
+      dom.audioUploadBtn.addEventListener('click', () => dom.audioFileInput.click());
+      dom.audioFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          loadLocalAudioFile(e.target.files[0]);
+        }
+        e.target.value = '';
+      });
+
+      // Audio pill controls
+      dom.audioPlayBtn.addEventListener('click', toggleAudioPlay);
+      dom.audioMuteBtn.addEventListener('click', toggleAudioMute);
+      dom.audioVolume.addEventListener('input', (e) => handleVolumeInput(e.target.value));
+
+      // Keyboard controls
+      document.addEventListener('keydown', (e) => {
+        if (e.target && e.target.tagName === 'INPUT') return;
+
+        if (!state.entered) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            enterViewer(true);
+          }
+          return;
+        }
+
+        if (e.key === 'Escape' && state.zoomOpen) {
+          e.preventDefault();
+          closeZoom();
+          return;
+        }
+
+        if (e.key === ' ') {
+          e.preventDefault();
+          toggleAudioPlay();
+          return;
+        }
+
+        if (!state.zoomOpen) {
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            goToPage(state.currentIndex - 1);
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            goToPage(state.currentIndex + 1);
+          }
+        }
+      });
+
+      // Mobile horizontal swipe between pages (disabled while zoomed)
+      let swipeStartX = 0;
+      let swipeStartY = 0;
+
+      dom.viewerShell.addEventListener('touchstart', (e) => {
+        if (state.zoomOpen || e.touches.length !== 1) return;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      dom.viewerShell.addEventListener('touchend', (e) => {
+        if (state.zoomOpen || e.changedTouches.length !== 1) return;
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        const dy = e.changedTouches[0].clientY - swipeStartY;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          if (dx < 0) {
+            goToPage(state.currentIndex + 1);
+          } else {
+            goToPage(state.currentIndex - 1);
+          }
+        }
+      }, { passive: true });
+
+      initZoomInteractions();
+      initWindowDragDrop();
+    }
+
+    /* -----------------------------------------------------------------------
+     * INITIALIZE
+     * ----------------------------------------------------------------------- */
+    window.addEventListener('DOMContentLoaded', () => {
+      initAudio();
+      bindEvents();
+      showPage(0, true);
+    });
+  </script>
+</body>
+</html>
