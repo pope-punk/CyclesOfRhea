@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>◈</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Minimal Darkroom Styling, Radial Vignette & Thin Slider -->
+  <!-- Minimal Darkroom Styling, Dynamic Viewport, Safe-Area Insets & Responsive Controls -->
   <style>
     :root {
       color-scheme: dark;
@@ -19,9 +19,11 @@
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100%;
+      height: 100vh;
+      height: 100dvh;
       background-color: #0b0c0c;
       overflow: hidden;
+      overscroll-behavior: none;
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -38,11 +40,45 @@
       );
     }
 
+    /* Full dynamic viewport container with 100vh fallback */
+    .viewport-full {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* Safe-area padding helpers for notched mobile devices and Safari/Chrome bars */
+    .safe-shell {
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    .safe-dock {
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Prevent mobile double-tap-to-zoom delay on interactive surfaces */
+    .tap-surface,
+    button {
+      touch-action: manipulation;
+    }
+
     /* Soft tactile gallery shadow behind handout pages */
     .page-shadow {
       box-shadow:
-        0 28px 70px rgba(0, 0, 0, 0.88),
-        0 8px 24px rgba(0, 0, 0, 0.58);
+        0 24px 64px rgba(0, 0, 0, 0.88),
+        0 8px 22px rgba(0, 0, 0, 0.58);
+    }
+
+    /* Show volume range slider on screens >= 480px; keep compact pill on narrow phones */
+    .volume-slider-responsive {
+      display: none;
+    }
+    @media (min-width: 480px) {
+      .volume-slider-responsive {
+        display: block;
+      }
     }
 
     /* Minimal thin volume range slider */
@@ -80,10 +116,17 @@
       cursor: pointer;
       transition: transform 0.15s ease, background-color 0.15s ease;
     }
+
+    /* Subtle edge chevron highlight when hovering left/right half of the desktop stage */
+    .chevron-highlight {
+      color: #f4f6f4 !important;
+      background-color: rgba(220, 225, 220, 0.085);
+      transform: translateY(-50%) scale(1.06);
+    }
   </style>
 </head>
 
-<body class="darkroom-bg w-screen h-screen overflow-hidden relative">
+<body class="darkroom-bg viewport-full overflow-hidden relative">
 
   <!-- Ultra-Subtle Inline SVG Film Grain Texture (Zero Base64 / Zero External Assets) -->
   <svg
@@ -102,13 +145,13 @@
     <rect width="100%" height="100%" filter="url(#darkroom-grain)" />
   </svg>
 
-  <!-- Native HTML5 Looping Audio Element (Configured via AUDIO_SRC in JS) -->
+  <!-- Native HTML5 Looping Background Music Element -->
   <audio id="bg-audio" preload="auto" loop playsinline></audio>
 
-  <!-- Native HTML5 Page-Flip SFX Element (Configured via PAGE_FLIP_SRC in JS) -->
+  <!-- Native HTML5 Page-Flip SFX Element -->
   <audio id="sfx-pageflip" preload="auto" playsinline></audio>
 
-  <!-- Hidden File Pickers for Local Handout PNGs & Local Audio Preview -->
+  <!-- Hidden File Pickers for Local Preview Fallback (Images & Audio) -->
   <input
     id="image-file-input"
     type="file"
@@ -139,11 +182,11 @@
   </div>
 
   <!-- =======================================================================
-       1. FULL-SCREEN ENTRY OVERLAY (Starts & Fades In Audio on Click)
+       1. FULL-SCREEN ENTRY OVERLAY (Fades In Music, Primes SFX & Reveals Landing)
   ======================================================================== -->
   <div
     id="entry-overlay"
-    class="fixed inset-0 z-40 darkroom-bg flex items-center justify-center cursor-pointer transition-opacity duration-700 ease-out"
+    class="fixed inset-0 viewport-full z-40 darkroom-bg flex items-center justify-center cursor-pointer transition-opacity duration-700 ease-out tap-surface"
     role="button"
     tabindex="0"
     aria-label="Enter"
@@ -160,183 +203,190 @@
   </div>
 
   <!-- =======================================================================
-       2. MAIN ONE-PAGE-AT-A-TIME VIEWER
+       2. MAIN RESPONSIVE FLEX-COLUMN VIEWER (MOBILE & DESKTOP OPTIMIZED)
   ======================================================================== -->
   <main
     id="viewer-shell"
-    class="relative w-full h-full flex items-center justify-center opacity-0"
+    class="viewport-full safe-shell relative flex flex-col opacity-0 overflow-hidden"
   >
-    <!-- Left Navigation Chevron -->
-    <button
-      id="prev-btn"
-      type="button"
-      class="fixed left-2 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-[#dce1dc]/60 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.07] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/60 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
-      aria-label="Previous"
+    <!-- Main Viewing Stage: Left Half = Previous, Right Half = Next -->
+    <section
+      id="stage-area"
+      class="flex-1 min-h-0 relative w-full flex items-center justify-center px-2 pt-2 pb-1 sm:px-16 sm:pt-5 sm:pb-2 tap-surface"
+      aria-label="Document stage"
     >
-      <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15.25 19L8.25 12L15.25 5" />
-      </svg>
-    </button>
-
-    <!-- Right Navigation Chevron -->
-    <button
-      id="next-btn"
-      type="button"
-      class="fixed right-2 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-[#dce1dc]/60 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.07] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/60 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
-      aria-label="Next"
-    >
-      <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M8.75 5L15.75 12L8.75 19" />
-      </svg>
-    </button>
-
-    <!-- Center Stage: Active Page Image OR Icon-Only Fallback Upload Container -->
-    <div
-      id="stage-container"
-      class="w-full h-full flex items-center justify-center opacity-0 scale-[0.985] will-change-[opacity,transform]"
-    >
-      <!-- Active Handout Image (Starts hidden until onload succeeds; alt="" guarantees zero broken text) -->
-      <img
-        id="page-img"
-        src=""
-        alt=""
-        draggable="false"
-        class="hidden page-shadow object-contain rounded-[3px] cursor-zoom-in max-h-[calc(100vh-76px)] max-w-[calc(100vw-88px)] sm:max-w-[calc(100vw-128px)] transition-transform duration-300 ease-out"
-      />
-
-      <!-- Icon-Only Missing-Image Fallback Upload Frame -->
+      <!-- Desktop Floating Left Edge Chevron -->
       <button
-        id="fallback-upload"
+        id="prev-btn"
         type="button"
-        class="hidden w-56 h-72 sm:w-64 sm:h-80 rounded-2xl border border-dashed border-[#dce1dc]/20 hover:border-[#dce1dc]/45 bg-[#dce1dc]/[0.02] hover:bg-[#dce1dc]/[0.045] flex items-center justify-center text-[#dce1dc]/45 hover:text-[#f4f6f4]/90 transition-all duration-200 cursor-pointer focus:outline-none"
-        aria-label="Load images"
+        class="hidden sm:flex absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 md:w-12 md:h-12 rounded-full items-center justify-center text-[#dce1dc]/50 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.085] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/50 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
+        aria-label="Previous"
       >
-        <!-- Clean Image-Plus SVG Icon -->
-        <svg class="w-11 h-11" fill="none" stroke="currentColor" stroke-width="1.35" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 11V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h7" />
-          <circle cx="8.5" cy="9.5" r="1.25" fill="currentColor" stroke="none" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 16.5l4.2-4.2a1.2 1.2 0 011.7 0l2.6 2.6" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 14v6M14.5 17h6" />
+        <svg class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.25 19L8.25 12L15.25 5" />
         </svg>
       </button>
-    </div>
 
-    <!-- Bottom-Center Minimal Pagination Dots -->
-    <nav
-      id="pagination-dots"
-      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1"
-      aria-label="Pages"
-    >
-      <!-- Dots generated via JS -->
-    </nav>
+      <!-- Desktop Floating Right Edge Chevron -->
+      <button
+        id="next-btn"
+        type="button"
+        class="hidden sm:flex absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 md:w-12 md:h-12 rounded-full items-center justify-center text-[#dce1dc]/50 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/[0.085] disabled:opacity-15 disabled:hover:bg-transparent disabled:hover:text-[#dce1dc]/50 disabled:cursor-default transition-all duration-200 cursor-pointer focus:outline-none"
+        aria-label="Next"
+      >
+        <svg class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.75 5L15.75 12L8.75 19" />
+        </svg>
+      </button>
+
+      <!-- Center Stage Container: Fades & Scales Up on Landing Reveal, Crisp Fades Between Pages -->
+      <div
+        id="stage-container"
+        class="w-full h-full flex items-center justify-center opacity-0 scale-[0.985] will-change-[opacity,transform]"
+      >
+        <!-- Active Handout Image (Maximizes Stage Space Without Ever Overlapping Bottom Dock) -->
+        <img
+          id="page-img"
+          src=""
+          alt=""
+          draggable="false"
+          class="hidden page-shadow max-h-full max-w-full w-auto h-auto object-contain rounded-[3px] select-none pointer-events-none"
+        />
+
+        <!-- Icon-Only Missing-Image Fallback Upload Frame -->
+        <button
+          id="fallback-upload"
+          type="button"
+          class="hidden w-52 h-68 sm:w-64 sm:h-80 rounded-2xl border border-dashed border-[#dce1dc]/20 hover:border-[#dce1dc]/45 bg-[#dce1dc]/[0.02] hover:bg-[#dce1dc]/[0.045] flex items-center justify-center text-[#dce1dc]/45 hover:text-[#f4f6f4]/90 transition-all duration-200 cursor-pointer focus:outline-none"
+          aria-label="Load images"
+        >
+          <svg class="w-11 h-11" fill="none" stroke="currentColor" stroke-width="1.35" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h7" />
+            <circle cx="8.5" cy="9.5" r="1.25" fill="currentColor" stroke="none" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 16.5l4.2-4.2a1.2 1.2 0 011.7 0l2.6 2.6" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 14v6M14.5 17h6" />
+          </svg>
+        </button>
+      </div>
+    </section>
 
     <!-- =====================================================================
-         3. MINIMAL BOTTOM-RIGHT FLOATING AUDIO PILL (ICON-ONLY)
+         3. BOTTOM DOCK (MOBILE INLINE NAV + DOTS + AUDIO / DESKTOP CENTERED DOTS + SUBTLE AUDIO PILL)
     ====================================================================== -->
-    <div
-      id="audio-pill"
-      class="fixed bottom-3.5 right-3.5 sm:bottom-5 sm:right-5 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#111312]/80 border border-[#dce1dc]/12 backdrop-blur-md opacity-35 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300"
+    <footer
+      id="bottom-dock"
+      class="shrink-0 w-full relative z-20 safe-dock pt-1.5 px-3 sm:px-5 flex items-center justify-between sm:justify-end gap-2"
     >
-      <!-- Play / Pause SVG Toggle -->
-      <button
-        id="audio-play-btn"
-        type="button"
-        class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
-        aria-label="Play or pause"
+      <!-- Mobile Inline Nav + Pagination Dots (Centered on Desktop via Absolute Positioning) -->
+      <div
+        class="flex items-center gap-0.5 sm:gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2"
       >
-        <svg id="icon-play" class="w-3.5 h-3.5 translate-x-[0.5px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M7.5 5.25L18.75 12L7.5 18.75V5.25Z" />
-        </svg>
-        <svg id="icon-pause" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6.75 5.25H10.25V18.75H6.75V5.25ZM13.75 5.25H17.25V18.75H13.75V5.25Z" />
-        </svg>
-      </button>
+        <!-- Compact Mobile Previous Chevron -->
+        <button
+          id="mobile-prev-btn"
+          type="button"
+          class="sm:hidden w-9 h-9 rounded-full flex items-center justify-center text-[#dce1dc]/65 active:bg-[#dce1dc]/10 disabled:opacity-20 disabled:active:bg-transparent transition-colors focus:outline-none"
+          aria-label="Previous"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.25 19L8.25 12L15.25 5" />
+          </svg>
+        </button>
 
-      <!-- Mute / Unmute SVG Toggle -->
-      <button
-        id="audio-mute-btn"
-        type="button"
-        class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
-        aria-label="Mute or unmute"
+        <!-- Minimal Pagination Dots -->
+        <nav
+          id="pagination-dots"
+          class="flex items-center gap-0.5 sm:gap-1 px-0.5 sm:px-2 py-1"
+          aria-label="Pages"
+        >
+          <!-- Dots generated via JS -->
+        </nav>
+
+        <!-- Compact Mobile Next Chevron -->
+        <button
+          id="mobile-next-btn"
+          type="button"
+          class="sm:hidden w-9 h-9 rounded-full flex items-center justify-center text-[#dce1dc]/65 active:bg-[#dce1dc]/10 disabled:opacity-20 disabled:active:bg-transparent transition-colors focus:outline-none"
+          aria-label="Next"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.75 5L15.75 12L8.75 19" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Minimal Icon-Only Audio Pill -->
+      <div
+        id="audio-pill"
+        class="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full bg-[#111312]/80 border border-[#dce1dc]/12 backdrop-blur-md opacity-80 sm:opacity-40 sm:hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300"
       >
-        <svg id="icon-vol-on" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.2 8.8a4.5 4.5 0 010 6.4" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18.2 6a8.5 8.5 0 010 12" />
-        </svg>
-        <svg id="icon-vol-off" class="w-4 h-4 hidden text-[#dce1dc]/45" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16 9.5L21 14.5M21 9.5L16 14.5" />
-        </svg>
-      </button>
+        <!-- Play / Pause SVG Toggle -->
+        <button
+          id="audio-play-btn"
+          type="button"
+          class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+          aria-label="Play or pause"
+        >
+          <svg id="icon-play" class="w-3.5 h-3.5 translate-x-[0.5px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7.5 5.25L18.75 12L7.5 18.75V5.25Z" />
+          </svg>
+          <svg id="icon-pause" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6.75 5.25H10.25V18.75H6.75V5.25ZM13.75 5.25H17.25V18.75H13.75V5.25Z" />
+          </svg>
+        </button>
 
-      <!-- Minimal Volume Slider -->
-      <input
-        id="audio-volume"
-        type="range"
-        min="0"
-        max="100"
-        value="55"
-        class="minimal-slider w-14 sm:w-16 mx-0.5 cursor-pointer"
-        aria-label="Volume"
-      />
+        <!-- Mute / Unmute SVG Toggle -->
+        <button
+          id="audio-mute-btn"
+          type="button"
+          class="w-8 h-8 rounded-full flex items-center justify-center text-[#dce1dc]/80 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+          aria-label="Mute or unmute"
+        >
+          <svg id="icon-vol-on" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.2 8.8a4.5 4.5 0 010 6.4" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.2 6a8.5 8.5 0 010 12" />
+          </svg>
+          <svg id="icon-vol-off" class="w-4 h-4 hidden text-[#dce1dc]/45" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.5L6.5 9H3.5V15H6.5L11 18.5V5.5Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 9.5L21 14.5M21 9.5L16 14.5" />
+          </svg>
+        </button>
 
-      <!-- Local Audio Upload Fallback Icon (Revealed ONLY if place.mp3 fails to load) -->
-      <button
-        id="audio-upload-btn"
-        type="button"
-        class="hidden w-8 h-8 rounded-full items-center justify-center text-[#dce1dc]/70 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
-        aria-label="Load audio file"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.5a2 2 0 11-4 0 2 2 0 014 0zm0 0V6.5l10-2v8.5" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 15v5M15 17.5h5" />
-        </svg>
-      </button>
-    </div>
+        <!-- Minimal Volume Slider (Hidden on Narrow Phones < 480px) -->
+        <input
+          id="audio-volume"
+          type="range"
+          min="0"
+          max="100"
+          value="65"
+          class="minimal-slider volume-slider-responsive w-14 sm:w-16 mx-0.5 cursor-pointer"
+          aria-label="Volume"
+        />
+
+        <!-- Local Audio Upload Fallback Icon (Revealed ONLY if place.mp3 Fails to Load) -->
+        <button
+          id="audio-upload-btn"
+          type="button"
+          class="hidden w-8 h-8 rounded-full items-center justify-center text-[#dce1dc]/70 hover:text-[#f4f6f4] hover:bg-[#dce1dc]/10 transition-colors cursor-pointer focus:outline-none"
+          aria-label="Load audio file"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.5a2 2 0 11-4 0 2 2 0 014 0zm0 0V6.5l10-2v8.5" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 15v5M15 17.5h5" />
+          </svg>
+        </button>
+      </div>
+    </footer>
   </main>
-
-  <!-- =======================================================================
-       4. CLICK-TO-ZOOM & PAN INSPECT OVERLAY (ICON-ONLY)
-  ======================================================================== -->
-  <div
-    id="zoom-overlay"
-    class="fixed inset-0 z-30 hidden items-center justify-center bg-[#080908]/95 backdrop-blur-sm overflow-hidden opacity-0 transition-opacity duration-200"
-    role="dialog"
-    aria-modal="true"
-  >
-    <!-- Minimal Corner Close (×) SVG Button -->
-    <button
-      id="zoom-close-btn"
-      type="button"
-      class="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 w-11 h-11 rounded-full bg-[#111312]/85 border border-[#dce1dc]/15 flex items-center justify-center text-[#dce1dc]/70 hover:text-[#f4f6f4] hover:border-[#dce1dc]/35 hover:bg-[#1a1d1b] transition-all duration-200 cursor-pointer focus:outline-none"
-      aria-label="Close"
-    >
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.65" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6L18 18M18 6L6 18" />
-      </svg>
-    </button>
-
-    <!-- Magnified, Pannable, Wheel-Zoomable & Double-Click-Zoomable Handout -->
-    <img
-      id="zoom-img"
-      src=""
-      alt=""
-      draggable="false"
-      class="page-shadow max-h-[88vh] max-w-[90vw] object-contain rounded-[3px] cursor-grab active:cursor-grabbing will-change-transform"
-    />
-  </div>
 
   <!-- =======================================================================
        APPLICATION LOGIC
   ======================================================================== -->
   <script>
     /* -----------------------------------------------------------------------
-     * CONFIGURATION — DROP place.mp3, pageflip.mp3 & YOUR PNGs IN THE SAME FOLDER
+     * PAGES & AUDIO CONFIGURATION
      * ----------------------------------------------------------------------- */
-    const AUDIO_SRC = 'place.mp3';
-    const PAGE_FLIP_SRC = 'pageflip.mp3';
-    const PAGE_FLIP_RELATIVE_VOLUME = 0.28; // Quiet relative to background music
     const PAGES = [
       'LandingPage.png',
       'Refresher1.png',
@@ -347,9 +397,13 @@
       'Refresher6.png',
     ];
 
+    const AUDIO_SRC = 'place.mp3';
+    const PAGEFLIP_SRCS = ['page-flip-02.mp3', 'pageflip.mp3'];
+
     const DEFAULT_VOLUME = 0.65;
     const FADE_IN_MS = 1200;
     const LANDING_FADE_UP_MS = 1800;
+    const PAGE_TRANSITION_MS = 260;
 
     /* -----------------------------------------------------------------------
      * APPLICATION STATE
@@ -359,15 +413,15 @@
       landingFading: false,
       landingRevealStarted: false,
       landingFadeTimer: null,
+      pageSwapTimer: null,
+
       sources: [...PAGES],
-      sourceNames: [...PAGES],
       currentIndex: 0,
       imageLoaded: false,
       imageObjectUrls: [],
-      audioObjectUrl: null,
-      sfxObjectUrl: null,
 
-      // Audio state
+      // Background Music State
+      audioObjectUrl: null,
       targetVolume: DEFAULT_VOLUME,
       isMuted: false,
       audioPlaying: false,
@@ -376,19 +430,16 @@
       fadeRafId: null,
       unlockArmed: false,
 
-      // Zoom / Pan state
-      zoomOpen: false,
-      zoomScale: 2.0,
-      panX: 0,
-      panY: 0,
-      isPanning: false,
-      didPanDrag: false,
-      panStartX: 0,
-      panStartY: 0,
-      panOriginX: 0,
-      panOriginY: 0,
-      pinchStartDist: 0,
-      pinchStartScale: 2.0,
+      // Page-Flip SFX State
+      sfxSrcIndex: 0,
+      sfxObjectUrl: null,
+      sfxUsingLocal: false,
+      sfxUnavailable: false,
+      sfxPrimed: false,
+
+      // Pointer / Touch State
+      hoverSide: null, // 'left' | 'right' | null
+      suppressStageClickUntil: 0,
     };
 
     /* -----------------------------------------------------------------------
@@ -399,6 +450,7 @@
       sfxPageFlip: document.getElementById('sfx-pageflip'),
       entryOverlay: document.getElementById('entry-overlay'),
       viewerShell: document.getElementById('viewer-shell'),
+      stageArea: document.getElementById('stage-area'),
       stageContainer: document.getElementById('stage-container'),
       pageImg: document.getElementById('page-img'),
       fallbackUpload: document.getElementById('fallback-upload'),
@@ -408,6 +460,8 @@
 
       prevBtn: document.getElementById('prev-btn'),
       nextBtn: document.getElementById('next-btn'),
+      mobilePrevBtn: document.getElementById('mobile-prev-btn'),
+      mobileNextBtn: document.getElementById('mobile-next-btn'),
       paginationDots: document.getElementById('pagination-dots'),
 
       audioPlayBtn: document.getElementById('audio-play-btn'),
@@ -418,15 +472,22 @@
       iconVolOff: document.getElementById('icon-vol-off'),
       audioVolume: document.getElementById('audio-volume'),
       audioUploadBtn: document.getElementById('audio-upload-btn'),
-
-      zoomOverlay: document.getElementById('zoom-overlay'),
-      zoomImg: document.getElementById('zoom-img'),
-      zoomCloseBtn: document.getElementById('zoom-close-btn'),
     };
 
     /* -----------------------------------------------------------------------
-     * NATIVE HTML5 AUDIO ENGINE (place.mp3 + FADE-IN + SEAMLESS LOOP)
+     * AUDIO ENGINE: BACKGROUND MUSIC (place.mp3) & PAGE-FLIP SFX
      * ----------------------------------------------------------------------- */
+
+    /**
+     * Computes quiet, natural page-flip volume relative to current music target volume.
+     * Returns 0 when muted or music volume is 0; otherwise gently clamped between 0.08 and 0.42.
+     */
+    function computeSfxVolume() {
+      if (state.isMuted || state.targetVolume <= 0.001) return 0;
+      const scaled = state.targetVolume * 0.4;
+      return Math.max(0.08, Math.min(0.42, scaled));
+    }
+
     function syncAudioIcons() {
       dom.iconPlay.classList.toggle('hidden', state.audioPlaying);
       dom.iconPause.classList.toggle('hidden', !state.audioPlaying);
@@ -463,7 +524,7 @@
         }
         const elapsed = now - startTime;
         const t = Math.min(1, elapsed / durationMs);
-        // Smooth cubic ease-out ramp
+        // Smooth cubic ease-out curve
         const eased = 1 - Math.pow(1 - t, 3);
         dom.audio.volume = Math.max(0, Math.min(1, safeFrom + (safeTo - safeFrom) * eased));
 
@@ -478,8 +539,80 @@
     }
 
     /**
-     * One-time gesture fallback: if initial autoplay was blocked by browser policy,
-     * the very next pointerdown or keydown unlocks and fades in playback.
+     * Silently primes/unlocks the page-flip <audio> element inside a direct user gesture
+     * so mobile Safari/iOS and desktop browsers permit instant playback on any later event.
+     */
+    function primePageFlipSfx() {
+      if (state.sfxPrimed || state.sfxUnavailable) return;
+      const sfx = dom.sfxPageFlip;
+      if (!sfx || !sfx.src) return;
+
+      try {
+        sfx.muted = true;
+        sfx.volume = 0;
+        const p = sfx.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            sfx.pause();
+            try {
+              sfx.currentTime = 0;
+            } catch (_) {
+              // Ignore seek errors if metadata not yet loaded
+            }
+            sfx.muted = state.isMuted;
+            sfx.volume = computeSfxVolume();
+            state.sfxPrimed = true;
+          }).catch(() => {
+            sfx.muted = state.isMuted;
+            sfx.volume = computeSfxVolume();
+          });
+        } else {
+          sfx.pause();
+          sfx.muted = state.isMuted;
+          sfx.volume = computeSfxVolume();
+          state.sfxPrimed = true;
+        }
+      } catch (_) {
+        sfx.muted = state.isMuted;
+        sfx.volume = computeSfxVolume();
+      }
+    }
+
+    /**
+     * Plays the page-flip sound cleanly on any actual page transition, supporting rapid clicks/taps.
+     */
+    function playPageFlipSfx() {
+      if (state.sfxUnavailable) return;
+      const vol = computeSfxVolume();
+      if (vol <= 0) return;
+
+      const sfx = dom.sfxPageFlip;
+      if (!sfx || !sfx.src) return;
+
+      try {
+        sfx.pause();
+        sfx.muted = false;
+        sfx.volume = vol;
+        try {
+          sfx.currentTime = 0;
+        } catch (_) {
+          // Ignore seek error if stream is still initializing
+        }
+        const p = sfx.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            state.sfxPrimed = true;
+          }).catch(() => {
+            // Silently ignore transient playback blocks
+          });
+        }
+      } catch (_) {
+        // Silently ignore SFX errors
+      }
+    }
+
+    /**
+     * One-time gesture fallback if background music autoplay was initially blocked.
      */
     function armAutoplayUnlock() {
       if (state.unlockArmed) return;
@@ -529,7 +662,6 @@
               state.audioPlaying = false;
               syncAudioIcons();
 
-              // Autoplay blocked by browser policy -> arm one-time gesture unlock
               if (err && err.name === 'NotAllowedError') {
                 armAutoplayUnlock();
               } else if (err && err.name === 'NotSupportedError') {
@@ -575,6 +707,7 @@
         dom.audio.volume = state.targetVolume;
       }
 
+      dom.sfxPageFlip.volume = computeSfxVolume();
       syncAudioIcons();
     }
 
@@ -590,42 +723,8 @@
       }
 
       dom.audio.volume = state.targetVolume;
-      dom.sfxPageFlip.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
+      dom.sfxPageFlip.volume = computeSfxVolume();
       syncAudioIcons();
-    }
-
-    /**
-     * Checks whether a given page index represents a Refresher page
-     * (all pages except LandingPage.png: matches /refresher/i, or index > 0 when a landing page is present).
-     */
-    function isRefresherPage(index) {
-      if (index < 0 || index >= state.sources.length) return false;
-      const name = state.sourceNames[index] || '';
-      if (/refresher/i.test(name)) return true;
-      if (/landing/i.test(name)) return false;
-      const hasLanding = state.sourceNames.some((n) => /landing/i.test(n));
-      return hasLanding ? index > 0 : false;
-    }
-
-    /**
-     * Plays the quiet page-flip sound effect relative to background music volume.
-     * Silently ignores missing files or playback restrictions.
-     */
-    function playPageFlipSfx() {
-      if (state.isMuted || state.targetVolume <= 0.001) return;
-      try {
-        const sfx = dom.sfxPageFlip;
-        if (!sfx || !sfx.src) return;
-        sfx.muted = false;
-        sfx.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
-        sfx.currentTime = 0;
-        const playPromise = sfx.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(() => {});
-        }
-      } catch (_) {
-        // Silently ignore missing SFX file or autoplay restrictions
-      }
     }
 
     function loadLocalSfxFile(file) {
@@ -635,10 +734,15 @@
           URL.revokeObjectURL(state.sfxObjectUrl);
         }
         state.sfxObjectUrl = URL.createObjectURL(file);
+        state.sfxUsingLocal = true;
+        state.sfxUnavailable = false;
+        state.sfxPrimed = false;
+
         dom.sfxPageFlip.src = state.sfxObjectUrl;
+        dom.sfxPageFlip.volume = computeSfxVolume();
         dom.sfxPageFlip.load();
       } catch (_) {
-        // Silently ignore local SFX load error
+        // Silently ignore local SFX load errors
       }
     }
 
@@ -663,20 +767,41 @@
     }
 
     function initAudio() {
+      // Configure background music
       dom.audio.src = AUDIO_SRC;
       dom.audio.loop = true;
       dom.audio.preload = 'auto';
       dom.audio.volume = 0;
       dom.audioVolume.value = String(Math.round(state.targetVolume * 100));
 
-      // Initialize quiet page-flip SFX element (errors silently ignored)
-      dom.sfxPageFlip.src = PAGE_FLIP_SRC;
+      // Configure page-flip SFX with automatic fallback from PAGEFLIP_SRCS[0] -> PAGEFLIP_SRCS[1]
+      state.sfxSrcIndex = 0;
+      state.sfxUsingLocal = false;
+      state.sfxUnavailable = false;
       dom.sfxPageFlip.preload = 'auto';
-      dom.sfxPageFlip.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
-      dom.sfxPageFlip.addEventListener('error', () => {
-        // Silently ignore missing pageflip.mp3
+      dom.sfxPageFlip.volume = computeSfxVolume();
+
+      dom.sfxPageFlip.addEventListener('canplay', () => {
+        state.sfxUnavailable = false;
       });
 
+      dom.sfxPageFlip.addEventListener('error', () => {
+        if (!state.sfxUsingLocal && state.sfxSrcIndex + 1 < PAGEFLIP_SRCS.length) {
+          state.sfxSrcIndex += 1;
+          state.sfxPrimed = false;
+          dom.sfxPageFlip.src = PAGEFLIP_SRCS[state.sfxSrcIndex];
+          dom.sfxPageFlip.load();
+        } else {
+          state.sfxUnavailable = true;
+        }
+      });
+
+      if (PAGEFLIP_SRCS.length > 0) {
+        dom.sfxPageFlip.src = PAGEFLIP_SRCS[0];
+        dom.sfxPageFlip.load();
+      }
+
+      // Background music events
       dom.audio.addEventListener('play', () => {
         state.audioPlaying = true;
         syncAudioIcons();
@@ -687,7 +812,7 @@
         syncAudioIcons();
       });
 
-      // Seamless loop safeguard in addition to audio.loop = true
+      // Seamless loop safeguard in addition to loop attribute
       dom.audio.addEventListener('ended', () => {
         try {
           dom.audio.currentTime = 0;
@@ -702,7 +827,7 @@
         setAudioUploadVisible(false);
       });
 
-      // If place.mp3 is missing or cannot load, reveal icon-only audio upload fallback
+      // Show local audio upload button ONLY if place.mp3 fails to load
       dom.audio.addEventListener('error', () => {
         state.audioError = true;
         state.audioPlaying = false;
@@ -712,13 +837,41 @@
       });
 
       syncAudioIcons();
-
-      // Attempt quiet autoplay immediately; gracefully arms unlock if browser blocks it
-      startAudio(true);
     }
 
     /* -----------------------------------------------------------------------
-     * DOSSIER PAGE RENDERING & NAVIGATION
+     * STAGE HOVER FEEDBACK & NAVIGATION STATE
+     * ----------------------------------------------------------------------- */
+    function updateNavButtonsAndCursor() {
+      const atFirst = state.currentIndex <= 0;
+      const atLast = state.currentIndex >= state.sources.length - 1;
+
+      dom.prevBtn.disabled = atFirst;
+      dom.nextBtn.disabled = atLast;
+      dom.mobilePrevBtn.disabled = atFirst;
+      dom.mobileNextBtn.disabled = atLast;
+
+      // Apply subtle desktop edge chevron highlight & pointer cursor only when transition is possible
+      const highlightLeft = state.hoverSide === 'left' && !atFirst;
+      const highlightRight = state.hoverSide === 'right' && !atLast;
+
+      dom.prevBtn.classList.toggle('chevron-highlight', highlightLeft);
+      dom.nextBtn.classList.toggle('chevron-highlight', highlightRight);
+
+      if (highlightLeft || highlightRight) {
+        dom.stageArea.style.cursor = 'pointer';
+      } else {
+        dom.stageArea.style.cursor = 'default';
+      }
+    }
+
+    function clearStageHover() {
+      state.hoverSide = null;
+      updateNavButtonsAndCursor();
+    }
+
+    /* -----------------------------------------------------------------------
+     * DOSSIER PAGE RENDERING & TRANSITIONS
      * ----------------------------------------------------------------------- */
     function finishLandingFade() {
       if (state.landingFadeTimer !== null) {
@@ -727,8 +880,8 @@
       }
       state.landingFading = false;
       dom.stageContainer.classList.remove('scale-[0.985]');
-      dom.stageContainer.style.transition = 'opacity 280ms ease-out';
-      dom.viewerShell.style.transition = 'opacity 280ms ease-out';
+      dom.stageContainer.style.transition = `opacity ${PAGE_TRANSITION_MS}ms ease-out`;
+      dom.viewerShell.style.transition = `opacity ${PAGE_TRANSITION_MS}ms ease-out`;
     }
 
     function triggerLandingStageReveal() {
@@ -746,7 +899,6 @@
 
     function renderPaginationDots() {
       dom.paginationDots.innerHTML = '';
-
       if (state.sources.length <= 1) return;
 
       state.sources.forEach((_, idx) => {
@@ -754,16 +906,18 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.setAttribute('aria-label', `Page ${idx + 1}`);
-        // Generous invisible tap target around minimal visible dot
         btn.className = 'p-1.5 flex items-center justify-center cursor-pointer focus:outline-none group';
 
         const dot = document.createElement('span');
         dot.className = active
-          ? 'block w-4 h-1.5 rounded-full bg-[#e6ebe6]/85 transition-all duration-250'
-          : 'block w-1.5 h-1.5 rounded-full bg-[#dce1dc]/25 group-hover:bg-[#dce1dc]/55 transition-all duration-250';
+          ? 'block w-4 h-1.5 rounded-full bg-[#e6ebe6]/85 transition-all duration-200'
+          : 'block w-1.5 h-1.5 rounded-full bg-[#dce1dc]/25 group-hover:bg-[#dce1dc]/55 transition-all duration-200';
 
         btn.appendChild(dot);
-        btn.addEventListener('click', () => goToPage(idx));
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          goToPage(idx);
+        });
         dom.paginationDots.appendChild(btn);
       });
     }
@@ -779,17 +933,20 @@
 
     function showPage(index, immediate = false) {
       if (index < 0 || index >= state.sources.length) return;
-      state.currentIndex = index;
+      if (state.pageSwapTimer !== null) {
+        clearTimeout(state.pageSwapTimer);
+        state.pageSwapTimer = null;
+      }
 
-      dom.prevBtn.disabled = index === 0;
-      dom.nextBtn.disabled = index === state.sources.length - 1;
+      state.currentIndex = index;
+      updateNavButtonsAndCursor();
       renderPaginationDots();
 
       const loadTarget = () => {
         state.imageLoaded = false;
         const src = state.sources[index];
 
-        // Hide both elements until load/error resolves so no broken image frame ever flashes
+        // Hide both elements until load/error resolves so no broken image icon ever flashes
         dom.pageImg.classList.add('hidden');
         dom.fallbackUpload.classList.add('hidden');
 
@@ -800,7 +957,6 @@
           dom.pageImg.classList.remove('hidden');
 
           if (!state.entered) {
-            // Keep preloaded LandingPage.png invisible until Play is clicked
             preloadNeighbors();
             return;
           }
@@ -836,19 +992,24 @@
         loadTarget();
       } else {
         dom.stageContainer.classList.add('opacity-0');
-        setTimeout(loadTarget, 170);
+        state.pageSwapTimer = setTimeout(() => {
+          state.pageSwapTimer = null;
+          loadTarget();
+        }, 150);
       }
     }
 
+    /**
+     * Navigates to a target page and plays the page-flip SFX on EVERY valid transition.
+     * Never fires SFX when out of bounds or already on that page.
+     */
     function goToPage(index) {
-      if (index === state.currentIndex || index < 0 || index >= state.sources.length) return;
-
-      // Play quiet page-flip sound only when transitioning FROM any Refresher page
-      if (isRefresherPage(state.currentIndex)) {
-        playPageFlipSfx();
+      if (index === state.currentIndex || index < 0 || index >= state.sources.length) {
+        return;
       }
 
-      // If user navigates before the slow landing fade completes, snap to crisp page transitions
+      playPageFlipSfx();
+
       if (state.landingFading) {
         finishLandingFade();
       }
@@ -878,7 +1039,7 @@
         const images = Array.from(files || []).filter(isImageFile);
         if (images.length === 0) return false;
 
-        // Sort any filename containing 'landing' first, then natural alphanumeric order
+        // Sort LandingPage.png (any filename containing 'landing') first, then natural alphanumeric order
         images.sort((a, b) => {
           const aLanding = /landing/i.test(a.name || '');
           const bLanding = /landing/i.test(b.name || '');
@@ -890,16 +1051,11 @@
         state.imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         state.imageObjectUrls = [];
 
-        state.sourceNames = images.map((file) => file.name || '');
         state.sources = images.map((file) => {
           const url = URL.createObjectURL(file);
           state.imageObjectUrls.push(url);
           return url;
         });
-
-        if (state.zoomOpen) {
-          closeZoom();
-        }
 
         showPage(0, !state.entered);
         return true;
@@ -915,9 +1071,9 @@
       const audioFiles = files.filter(isAudioFile);
       const imageFiles = files.filter(isImageFile);
 
-      const isSfxFile = (file) => /(flip|page|sfx)/i.test(file.name || '');
-      const sfxFiles = audioFiles.filter(isSfxFile);
-      const bgFiles = audioFiles.filter((file) => !isSfxFile(file));
+      // Audio file containing 'flip' in filename -> page-flip SFX; others -> background music
+      const sfxFiles = audioFiles.filter((file) => /flip/i.test(file.name || ''));
+      const bgFiles = audioFiles.filter((file) => !/flip/i.test(file.name || ''));
 
       if (sfxFiles.length > 0) {
         loadLocalSfxFile(sfxFiles[0]);
@@ -931,30 +1087,9 @@
         loadLocalImageFiles(imageFiles);
       }
 
-      // If files were dropped directly onto the entry overlay, transition straight into the viewer
+      // If files were dropped directly onto the entry overlay, smoothly enter the viewer
       if (!state.entered && (imageFiles.length > 0 || bgFiles.length > 0 || sfxFiles.length > 0)) {
         enterViewer(bgFiles.length === 0);
-      }
-    }
-
-    function handleDroppedFiles(fileList) {
-      const files = Array.from(fileList || []);
-      if (files.length === 0) return;
-
-      const audioFiles = files.filter(isAudioFile);
-      const imageFiles = files.filter(isImageFile);
-
-      if (audioFiles.length > 0) {
-        loadLocalAudioFile(audioFiles[0]);
-      }
-
-      if (imageFiles.length > 0) {
-        loadLocalImageFiles(imageFiles);
-      }
-
-      // If files were dropped directly onto the entry overlay, transition straight into the viewer
-      if (!state.entered && (imageFiles.length > 0 || audioFiles.length > 0)) {
-        enterViewer(audioFiles.length === 0);
       }
     }
 
@@ -992,179 +1127,6 @@
     }
 
     /* -----------------------------------------------------------------------
-     * CLICK-TO-ZOOM, SCROLL-WHEEL, DOUBLE-CLICK & DRAG-TO-PAN INSPECT MODE
-     * ----------------------------------------------------------------------- */
-    function clampPan() {
-      const rect = dom.zoomImg.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-
-      const baseW = rect.width / state.zoomScale;
-      const baseH = rect.height / state.zoomScale;
-
-      const maxPanX = Math.max(0, (baseW * state.zoomScale - window.innerWidth * 0.85) / 2);
-      const maxPanY = Math.max(0, (baseH * state.zoomScale - window.innerHeight * 0.85) / 2);
-
-      state.panX = Math.max(-maxPanX, Math.min(maxPanX, state.panX));
-      state.panY = Math.max(-maxPanY, Math.min(maxPanY, state.panY));
-    }
-
-    function applyZoomTransform(smooth = false) {
-      dom.zoomImg.style.transition = smooth ? 'transform 180ms ease-out' : 'none';
-      dom.zoomImg.style.transform = `translate3d(${state.panX}px, ${state.panY}px, 0) scale(${state.zoomScale})`;
-    }
-
-    function openZoom() {
-      if (!state.imageLoaded) return;
-      state.zoomOpen = true;
-      state.zoomScale = 2.0;
-      state.panX = 0;
-      state.panY = 0;
-
-      dom.zoomImg.src = state.sources[state.currentIndex];
-      dom.zoomOverlay.classList.remove('hidden');
-      dom.zoomOverlay.classList.add('flex');
-
-      applyZoomTransform(false);
-
-      requestAnimationFrame(() => {
-        dom.zoomOverlay.classList.remove('opacity-0');
-      });
-    }
-
-    function closeZoom() {
-      if (!state.zoomOpen) return;
-      state.zoomOpen = false;
-      state.isPanning = false;
-      dom.zoomOverlay.classList.add('opacity-0');
-
-      setTimeout(() => {
-        if (!state.zoomOpen) {
-          dom.zoomOverlay.classList.add('hidden');
-          dom.zoomOverlay.classList.remove('flex');
-          dom.zoomImg.removeAttribute('src');
-        }
-      }, 200);
-    }
-
-    function initZoomInteractions() {
-      // Mouse wheel smooth zoom in/out
-      dom.zoomOverlay.addEventListener('wheel', (e) => {
-        if (!state.zoomOpen) return;
-        e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.15 : 0.87;
-        state.zoomScale = Math.max(1.0, Math.min(4.0, state.zoomScale * factor));
-        if (state.zoomScale <= 1.02) {
-          state.panX = 0;
-          state.panY = 0;
-        } else {
-          clampPan();
-        }
-        applyZoomTransform(true);
-      }, { passive: false });
-
-      // Double-click image to toggle between 1.0x fit and 2.2x close inspect
-      dom.zoomImg.addEventListener('dblclick', (e) => {
-        if (!state.zoomOpen) return;
-        e.preventDefault();
-        if (state.zoomScale > 1.2) {
-          state.zoomScale = 1.0;
-          state.panX = 0;
-          state.panY = 0;
-        } else {
-          state.zoomScale = 2.2;
-          clampPan();
-        }
-        applyZoomTransform(true);
-      });
-
-      // Mouse drag-to-pan
-      dom.zoomImg.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        state.isPanning = true;
-        state.didPanDrag = false;
-        state.panStartX = e.clientX;
-        state.panStartY = e.clientY;
-        state.panOriginX = state.panX;
-        state.panOriginY = state.panY;
-      });
-
-      window.addEventListener('mousemove', (e) => {
-        if (!state.isPanning || !state.zoomOpen) return;
-        const dx = e.clientX - state.panStartX;
-        const dy = e.clientY - state.panStartY;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-          state.didPanDrag = true;
-        }
-        state.panX = state.panOriginX + dx;
-        state.panY = state.panOriginY + dy;
-        clampPan();
-        applyZoomTransform(false);
-      });
-
-      window.addEventListener('mouseup', () => {
-        state.isPanning = false;
-      });
-
-      // Touch drag-to-pan & two-finger pinch zoom inside inspect mode
-      dom.zoomOverlay.addEventListener('touchstart', (e) => {
-        if (!state.zoomOpen) return;
-        if (e.touches.length === 1) {
-          state.isPanning = true;
-          state.didPanDrag = false;
-          state.panStartX = e.touches[0].clientX;
-          state.panStartY = e.touches[0].clientY;
-          state.panOriginX = state.panX;
-          state.panOriginY = state.panY;
-        } else if (e.touches.length === 2) {
-          state.isPanning = false;
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
-          state.pinchStartDist = Math.hypot(dx, dy);
-          state.pinchStartScale = state.zoomScale;
-        }
-      }, { passive: true });
-
-      dom.zoomOverlay.addEventListener('touchmove', (e) => {
-        if (!state.zoomOpen) return;
-        if (e.touches.length === 1 && state.isPanning) {
-          e.preventDefault();
-          const dx = e.touches[0].clientX - state.panStartX;
-          const dy = e.touches[0].clientY - state.panStartY;
-          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-            state.didPanDrag = true;
-          }
-          state.panX = state.panOriginX + dx;
-          state.panY = state.panOriginY + dy;
-          clampPan();
-          applyZoomTransform(false);
-        } else if (e.touches.length === 2 && state.pinchStartDist > 0) {
-          e.preventDefault();
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
-          const dist = Math.hypot(dx, dy);
-          state.zoomScale = Math.max(1.0, Math.min(4.0, state.pinchStartScale * (dist / state.pinchStartDist)));
-          clampPan();
-          applyZoomTransform(false);
-        }
-      }, { passive: false });
-
-      dom.zoomOverlay.addEventListener('touchend', () => {
-        state.isPanning = false;
-        state.pinchStartDist = 0;
-      }, { passive: true });
-
-      // Click dark backdrop outside image to exit zoom
-      dom.zoomOverlay.addEventListener('click', (e) => {
-        if (e.target === dom.zoomOverlay && !state.didPanDrag) {
-          closeZoom();
-        }
-      });
-
-      dom.zoomCloseBtn.addEventListener('click', closeZoom);
-    }
-
-    /* -----------------------------------------------------------------------
      * ENTRY TRIGGER & GLOBAL INPUT BINDINGS
      * ----------------------------------------------------------------------- */
     function enterViewer(triggerAudio = true) {
@@ -1172,6 +1134,9 @@
       state.entered = true;
       state.landingFading = true;
       state.landingRevealStarted = false;
+
+      // Prime page-flip SFX inside this direct user gesture so iOS/Safari unlocks it immediately
+      primePageFlipSfx();
 
       if (triggerAudio && !state.audioError) {
         if (dom.audio.paused) {
@@ -1181,7 +1146,7 @@
         }
       }
 
-      // Apply slow, deliberate atmospheric fade-up for LandingPage.png
+      // Slow, atmospheric 1.8s fade-up and subtle scale for LandingPage.png
       dom.viewerShell.style.transition = `opacity ${LANDING_FADE_UP_MS}ms ease-out`;
       dom.stageContainer.style.transition = `opacity ${LANDING_FADE_UP_MS}ms ease-out, transform ${LANDING_FADE_UP_MS}ms ease-out`;
 
@@ -1209,22 +1174,110 @@
         }
       });
 
-      // Navigation buttons
-      dom.prevBtn.addEventListener('click', () => goToPage(state.currentIndex - 1));
-      dom.nextBtn.addEventListener('click', () => goToPage(state.currentIndex + 1));
+      // Desktop & mobile chevron buttons (stopPropagation prevents double-trigger with stage click)
+      dom.prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        goToPage(state.currentIndex - 1);
+      });
+      dom.nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        goToPage(state.currentIndex + 1);
+      });
+      dom.mobilePrevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        goToPage(state.currentIndex - 1);
+      });
+      dom.mobileNextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        goToPage(state.currentIndex + 1);
+      });
 
-      // Click page image to enter zoom mode
-      dom.pageImg.addEventListener('click', openZoom);
+      // Left/Right half stage tap & click navigation (excluding interactive controls)
+      dom.stageArea.addEventListener('click', (e) => {
+        if (!state.entered) return;
+        if (performance.now() < state.suppressStageClickUntil) return;
+        if (e.target.closest('button, input, #audio-pill, #pagination-dots')) return;
+
+        const rect = dom.stageArea.getBoundingClientRect();
+        const isLeftHalf = e.clientX < rect.left + rect.width / 2;
+
+        if (isLeftHalf) {
+          goToPage(state.currentIndex - 1);
+        } else {
+          goToPage(state.currentIndex + 1);
+        }
+      });
+
+      // Subtle desktop hover feedback over left/right halves of the stage
+      dom.stageArea.addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse' || !state.entered) return;
+        if (e.target.closest('#fallback-upload')) {
+          clearStageHover();
+          return;
+        }
+        const rect = dom.stageArea.getBoundingClientRect();
+        const side = e.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
+        if (state.hoverSide !== side) {
+          state.hoverSide = side;
+          updateNavButtonsAndCursor();
+        }
+      });
+
+      dom.stageArea.addEventListener('pointerleave', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        clearStageHover();
+      });
+
+      // Horizontal touch swipe on the viewing stage (suppresses trailing synthetic click)
+      let swipeStartX = 0;
+      let swipeStartY = 0;
+      let swipeTracking = false;
+
+      dom.stageArea.addEventListener('touchstart', (e) => {
+        if (!state.entered || e.touches.length !== 1) return;
+        if (e.target.closest('button, input')) return;
+        swipeTracking = true;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      dom.stageArea.addEventListener('touchend', (e) => {
+        if (!swipeTracking || e.changedTouches.length !== 1) return;
+        swipeTracking = false;
+
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        const dy = e.changedTouches[0].clientY - swipeStartY;
+
+        if (Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+          // Prevent any synthetic tap/click from double-firing after swipe
+          state.suppressStageClickUntil = performance.now() + 450;
+          if (dx < 0) {
+            goToPage(state.currentIndex + 1);
+          } else {
+            goToPage(state.currentIndex - 1);
+          }
+        }
+      }, { passive: true });
+
+      dom.stageArea.addEventListener('touchcancel', () => {
+        swipeTracking = false;
+      }, { passive: true });
 
       // Local image picker fallback
-      dom.fallbackUpload.addEventListener('click', () => dom.imageFileInput.click());
+      dom.fallbackUpload.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dom.imageFileInput.click();
+      });
       dom.imageFileInput.addEventListener('change', (e) => {
         loadLocalImageFiles(e.target.files);
         e.target.value = '';
       });
 
       // Local audio picker fallback
-      dom.audioUploadBtn.addEventListener('click', () => dom.audioFileInput.click());
+      dom.audioUploadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dom.audioFileInput.click();
+      });
       dom.audioFileInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
           loadLocalAudioFile(e.target.files[0]);
@@ -1233,11 +1286,19 @@
       });
 
       // Audio pill controls
-      dom.audioPlayBtn.addEventListener('click', toggleAudioPlay);
-      dom.audioMuteBtn.addEventListener('click', toggleAudioMute);
-      dom.audioVolume.addEventListener('input', (e) => handleVolumeInput(e.target.value));
+      dom.audioPlayBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleAudioPlay();
+      });
+      dom.audioMuteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleAudioMute();
+      });
+      dom.audioVolume.addEventListener('input', (e) => {
+        handleVolumeInput(e.target.value);
+      });
 
-      // Keyboard controls
+      // Keyboard controls: Enter/Space on cover, ArrowLeft/ArrowRight to navigate, Space to toggle audio
       document.addEventListener('keydown', (e) => {
         if (e.target && e.target.tagName === 'INPUT') return;
 
@@ -1249,53 +1310,21 @@
           return;
         }
 
-        if (e.key === 'Escape' && state.zoomOpen) {
-          e.preventDefault();
-          closeZoom();
-          return;
-        }
-
         if (e.key === ' ') {
           e.preventDefault();
           toggleAudioPlay();
           return;
         }
 
-        if (!state.zoomOpen) {
-          if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            goToPage(state.currentIndex - 1);
-          } else if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            goToPage(state.currentIndex + 1);
-          }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          goToPage(state.currentIndex - 1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          goToPage(state.currentIndex + 1);
         }
       });
 
-      // Mobile horizontal swipe between pages (disabled while zoomed)
-      let swipeStartX = 0;
-      let swipeStartY = 0;
-
-      dom.viewerShell.addEventListener('touchstart', (e) => {
-        if (state.zoomOpen || e.touches.length !== 1) return;
-        swipeStartX = e.touches[0].clientX;
-        swipeStartY = e.touches[0].clientY;
-      }, { passive: true });
-
-      dom.viewerShell.addEventListener('touchend', (e) => {
-        if (state.zoomOpen || e.changedTouches.length !== 1) return;
-        const dx = e.changedTouches[0].clientX - swipeStartX;
-        const dy = e.changedTouches[0].clientY - swipeStartY;
-        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-          if (dx < 0) {
-            goToPage(state.currentIndex + 1);
-          } else {
-            goToPage(state.currentIndex - 1);
-          }
-        }
-      }, { passive: true });
-
-      initZoomInteractions();
       initWindowDragDrop();
     }
 
