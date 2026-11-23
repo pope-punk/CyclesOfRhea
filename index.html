@@ -105,6 +105,9 @@
   <!-- Native HTML5 Looping Audio Element (Configured via AUDIO_SRC in JS) -->
   <audio id="bg-audio" preload="auto" loop playsinline></audio>
 
+  <!-- Native HTML5 Page-Flip SFX Element (Configured via PAGE_FLIP_SRC in JS) -->
+  <audio id="sfx-pageflip" preload="auto" playsinline></audio>
+
   <!-- Hidden File Pickers for Local Handout PNGs & Local Audio Preview -->
   <input
     id="image-file-input"
@@ -161,7 +164,7 @@
   ======================================================================== -->
   <main
     id="viewer-shell"
-    class="relative w-full h-full flex items-center justify-center opacity-0 transition-opacity duration-700 ease-out"
+    class="relative w-full h-full flex items-center justify-center opacity-0"
   >
     <!-- Left Navigation Chevron -->
     <button
@@ -190,7 +193,7 @@
     <!-- Center Stage: Active Page Image OR Icon-Only Fallback Upload Container -->
     <div
       id="stage-container"
-      class="w-full h-full flex items-center justify-center transition-opacity duration-300 ease-out"
+      class="w-full h-full flex items-center justify-center opacity-0 scale-[0.985] will-change-[opacity,transform]"
     >
       <!-- Active Handout Image (Starts hidden until onload succeeds; alt="" guarantees zero broken text) -->
       <img
@@ -329,32 +332,40 @@
   ======================================================================== -->
   <script>
     /* -----------------------------------------------------------------------
-     * CONFIGURATION — DROP place.mp3 & YOUR PNGs IN THE SAME FOLDER
+     * CONFIGURATION — DROP place.mp3, pageflip.mp3 & YOUR PNGs IN THE SAME FOLDER
      * ----------------------------------------------------------------------- */
     const AUDIO_SRC = 'place.mp3';
+    const PAGE_FLIP_SRC = 'pageflip.mp3';
+    const PAGE_FLIP_RELATIVE_VOLUME = 0.28; // Quiet relative to background music
     const PAGES = [
+      'LandingPage.png',
       'Refresher1.png',
       'Refresher2.png',
       'Refresher3.png',
-      // 'Refresher4.png',
-      // 'Refresher5.png',
-      // 'Refresher6.png',
-      // 'Refresher7.png',
+      'Refresher4.png',
+      'Refresher5.png',
+      'Refresher6.png',
     ];
 
     const DEFAULT_VOLUME = 0.65;
     const FADE_IN_MS = 1200;
+    const LANDING_FADE_UP_MS = 1800;
 
     /* -----------------------------------------------------------------------
      * APPLICATION STATE
      * ----------------------------------------------------------------------- */
     const state = {
       entered: false,
+      landingFading: false,
+      landingRevealStarted: false,
+      landingFadeTimer: null,
       sources: [...PAGES],
+      sourceNames: [...PAGES],
       currentIndex: 0,
       imageLoaded: false,
       imageObjectUrls: [],
       audioObjectUrl: null,
+      sfxObjectUrl: null,
 
       // Audio state
       targetVolume: DEFAULT_VOLUME,
@@ -385,6 +396,7 @@
      * ----------------------------------------------------------------------- */
     const dom = {
       audio: document.getElementById('bg-audio'),
+      sfxPageFlip: document.getElementById('sfx-pageflip'),
       entryOverlay: document.getElementById('entry-overlay'),
       viewerShell: document.getElementById('viewer-shell'),
       stageContainer: document.getElementById('stage-container'),
@@ -553,6 +565,7 @@
       cancelFade();
       state.isMuted = !state.isMuted;
       dom.audio.muted = state.isMuted;
+      dom.sfxPageFlip.muted = state.isMuted;
 
       if (!state.isMuted) {
         if (state.targetVolume <= 0.001) {
@@ -573,10 +586,60 @@
       if (clamped > 0 && state.isMuted) {
         state.isMuted = false;
         dom.audio.muted = false;
+        dom.sfxPageFlip.muted = false;
       }
 
       dom.audio.volume = state.targetVolume;
+      dom.sfxPageFlip.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
       syncAudioIcons();
+    }
+
+    /**
+     * Checks whether a given page index represents a Refresher page
+     * (all pages except LandingPage.png: matches /refresher/i, or index > 0 when a landing page is present).
+     */
+    function isRefresherPage(index) {
+      if (index < 0 || index >= state.sources.length) return false;
+      const name = state.sourceNames[index] || '';
+      if (/refresher/i.test(name)) return true;
+      if (/landing/i.test(name)) return false;
+      const hasLanding = state.sourceNames.some((n) => /landing/i.test(n));
+      return hasLanding ? index > 0 : false;
+    }
+
+    /**
+     * Plays the quiet page-flip sound effect relative to background music volume.
+     * Silently ignores missing files or playback restrictions.
+     */
+    function playPageFlipSfx() {
+      if (state.isMuted || state.targetVolume <= 0.001) return;
+      try {
+        const sfx = dom.sfxPageFlip;
+        if (!sfx || !sfx.src) return;
+        sfx.muted = false;
+        sfx.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
+        sfx.currentTime = 0;
+        const playPromise = sfx.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
+      } catch (_) {
+        // Silently ignore missing SFX file or autoplay restrictions
+      }
+    }
+
+    function loadLocalSfxFile(file) {
+      if (!file) return;
+      try {
+        if (state.sfxObjectUrl) {
+          URL.revokeObjectURL(state.sfxObjectUrl);
+        }
+        state.sfxObjectUrl = URL.createObjectURL(file);
+        dom.sfxPageFlip.src = state.sfxObjectUrl;
+        dom.sfxPageFlip.load();
+      } catch (_) {
+        // Silently ignore local SFX load error
+      }
     }
 
     function loadLocalAudioFile(file) {
@@ -605,6 +668,14 @@
       dom.audio.preload = 'auto';
       dom.audio.volume = 0;
       dom.audioVolume.value = String(Math.round(state.targetVolume * 100));
+
+      // Initialize quiet page-flip SFX element (errors silently ignored)
+      dom.sfxPageFlip.src = PAGE_FLIP_SRC;
+      dom.sfxPageFlip.preload = 'auto';
+      dom.sfxPageFlip.volume = Math.max(0, Math.min(1, state.targetVolume * PAGE_FLIP_RELATIVE_VOLUME));
+      dom.sfxPageFlip.addEventListener('error', () => {
+        // Silently ignore missing pageflip.mp3
+      });
 
       dom.audio.addEventListener('play', () => {
         state.audioPlaying = true;
@@ -649,6 +720,30 @@
     /* -----------------------------------------------------------------------
      * DOSSIER PAGE RENDERING & NAVIGATION
      * ----------------------------------------------------------------------- */
+    function finishLandingFade() {
+      if (state.landingFadeTimer !== null) {
+        clearTimeout(state.landingFadeTimer);
+        state.landingFadeTimer = null;
+      }
+      state.landingFading = false;
+      dom.stageContainer.classList.remove('scale-[0.985]');
+      dom.stageContainer.style.transition = 'opacity 280ms ease-out';
+      dom.viewerShell.style.transition = 'opacity 280ms ease-out';
+    }
+
+    function triggerLandingStageReveal() {
+      if (state.landingRevealStarted) return;
+      state.landingRevealStarted = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          dom.stageContainer.classList.remove('opacity-0', 'scale-[0.985]');
+        });
+      });
+      state.landingFadeTimer = setTimeout(() => {
+        finishLandingFade();
+      }, LANDING_FADE_UP_MS + 60);
+    }
+
     function renderPaginationDots() {
       dom.paginationDots.innerHTML = '';
 
@@ -703,7 +798,18 @@
           state.imageLoaded = true;
           dom.fallbackUpload.classList.add('hidden');
           dom.pageImg.classList.remove('hidden');
-          dom.stageContainer.classList.remove('opacity-0');
+
+          if (!state.entered) {
+            // Keep preloaded LandingPage.png invisible until Play is clicked
+            preloadNeighbors();
+            return;
+          }
+
+          if (state.landingFading) {
+            triggerLandingStageReveal();
+          } else {
+            dom.stageContainer.classList.remove('opacity-0');
+          }
           preloadNeighbors();
         };
 
@@ -713,7 +819,14 @@
           dom.pageImg.classList.add('hidden');
           dom.pageImg.removeAttribute('src');
           dom.fallbackUpload.classList.remove('hidden');
-          dom.stageContainer.classList.remove('opacity-0');
+
+          if (!state.entered) return;
+
+          if (state.landingFading) {
+            triggerLandingStageReveal();
+          } else {
+            dom.stageContainer.classList.remove('opacity-0');
+          }
         };
 
         dom.pageImg.src = src;
@@ -729,6 +842,17 @@
 
     function goToPage(index) {
       if (index === state.currentIndex || index < 0 || index >= state.sources.length) return;
+
+      // Play quiet page-flip sound only when transitioning FROM any Refresher page
+      if (isRefresherPage(state.currentIndex)) {
+        playPageFlipSfx();
+      }
+
+      // If user navigates before the slow landing fade completes, snap to crisp page transitions
+      if (state.landingFading) {
+        finishLandingFade();
+      }
+
       showPage(index, false);
     }
 
@@ -754,14 +878,19 @@
         const images = Array.from(files || []).filter(isImageFile);
         if (images.length === 0) return false;
 
-        // Sort in natural alphanumeric order (Refresher1.png ... Refresher10.png)
-        images.sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-        );
+        // Sort any filename containing 'landing' first, then natural alphanumeric order
+        images.sort((a, b) => {
+          const aLanding = /landing/i.test(a.name || '');
+          const bLanding = /landing/i.test(b.name || '');
+          if (aLanding && !bLanding) return -1;
+          if (!aLanding && bLanding) return 1;
+          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        });
 
         state.imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         state.imageObjectUrls = [];
 
+        state.sourceNames = images.map((file) => file.name || '');
         state.sources = images.map((file) => {
           const url = URL.createObjectURL(file);
           state.imageObjectUrls.push(url);
@@ -772,10 +901,39 @@
           closeZoom();
         }
 
-        showPage(0, false);
+        showPage(0, !state.entered);
         return true;
       } catch (_) {
         return false;
+      }
+    }
+
+    function handleDroppedFiles(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+
+      const audioFiles = files.filter(isAudioFile);
+      const imageFiles = files.filter(isImageFile);
+
+      const isSfxFile = (file) => /(flip|page|sfx)/i.test(file.name || '');
+      const sfxFiles = audioFiles.filter(isSfxFile);
+      const bgFiles = audioFiles.filter((file) => !isSfxFile(file));
+
+      if (sfxFiles.length > 0) {
+        loadLocalSfxFile(sfxFiles[0]);
+      }
+
+      if (bgFiles.length > 0) {
+        loadLocalAudioFile(bgFiles[0]);
+      }
+
+      if (imageFiles.length > 0) {
+        loadLocalImageFiles(imageFiles);
+      }
+
+      // If files were dropped directly onto the entry overlay, transition straight into the viewer
+      if (!state.entered && (imageFiles.length > 0 || bgFiles.length > 0 || sfxFiles.length > 0)) {
+        enterViewer(bgFiles.length === 0);
       }
     }
 
@@ -1012,6 +1170,8 @@
     function enterViewer(triggerAudio = true) {
       if (state.entered) return;
       state.entered = true;
+      state.landingFading = true;
+      state.landingRevealStarted = false;
 
       if (triggerAudio && !state.audioError) {
         if (dom.audio.paused) {
@@ -1021,8 +1181,18 @@
         }
       }
 
+      // Apply slow, deliberate atmospheric fade-up for LandingPage.png
+      dom.viewerShell.style.transition = `opacity ${LANDING_FADE_UP_MS}ms ease-out`;
+      dom.stageContainer.style.transition = `opacity ${LANDING_FADE_UP_MS}ms ease-out, transform ${LANDING_FADE_UP_MS}ms ease-out`;
+
       dom.entryOverlay.classList.add('opacity-0', 'pointer-events-none');
-      dom.viewerShell.classList.remove('opacity-0');
+
+      requestAnimationFrame(() => {
+        dom.viewerShell.classList.remove('opacity-0');
+        if (state.imageLoaded || !dom.fallbackUpload.classList.contains('hidden')) {
+          triggerLandingStageReveal();
+        }
+      });
 
       setTimeout(() => {
         dom.entryOverlay.classList.add('hidden');
